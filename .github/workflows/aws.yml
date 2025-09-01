@@ -1,0 +1,67 @@
+name: Fullstack Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -------------------------
+      # 1️⃣ Checkout repo
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # -------------------------
+      # 2️⃣ Build frontend
+      - name: Build frontend
+        run: |
+          cd src/main/resources/taskmanager-frontend
+          npm install
+          # Set API URL to EC2 public IP for production
+          VITE_API_URL=http://51.21.149.6:8080 npm run build
+          # Copy frontend build to Spring Boot static folder
+          cp -r dist/* ../../static/
+
+      # -------------------------
+      # 3️⃣ Setup Java & build backend
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Build backend
+        run: mvn clean package -DskipTests
+
+      # -------------------------
+      # 4️⃣ Copy JAR to EC2
+      - name: Copy JAR to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "target/*.jar"
+          target: "~/app/"
+
+      # -------------------------
+      # 5️⃣ Restart Spring Boot app on EC2
+      - name: Restart Spring Boot app
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Kill old app if running
+            pkill -f 'java -jar' || true
+            # Run new JAR with RDS connection and listen on all interfaces
+            nohup java -jar ~/app/*.jar \
+              --spring.datasource.url=jdbc:mysql://taskdb.chm48k26ot6d.eu-north-1.rds.amazonaws.com:3306/myappdb \
+              --spring.datasource.username=admin \
+              --spring.datasource.password=MySecret123 \
+              --server.address=0.0.0.0 \
+              --server.port=8080 > ~/app/app.log 2>&1 &
