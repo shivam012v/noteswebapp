@@ -54,5 +54,17 @@ public class TaskServiceImpl implements TaskService {
         return false;
     }
 
+    @Override
+    public TaskDto updateTask(long id, AddTaskDto addTaskDto) {
+        if(taskRepo.existsById(id)) {
+            Task task = taskRepo.findById(id).orElse(null);
+            modelMapper.map(addTaskDto, task);
+            assert task != null;
+            taskRepo.save(task);
+            return modelMapper.map(task, TaskDto.class);
+        }
+        return null;
+    }
+
 
 }
