@@ -21,7 +21,6 @@ public class TaskServiceImpl implements TaskService {
         this.modelMapper = modelMapper;
     }
 
-
     @Override
     public List<TaskDto> getTask() {
         List<Task> alltask = taskRepo.findAll();
